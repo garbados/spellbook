@@ -1,0 +1,12 @@
+{
+  "name": "spellbook",
+  "version": "0.0.1",
+  "private": true,
+  "devDependencies": {
+    "shadow-cljs": "2.26.0"
+  },
+  "dependencies": {
+    "pouchdb": "^8.0.1",
+    "react-dom": "^18.2.0"
+  }
+}
