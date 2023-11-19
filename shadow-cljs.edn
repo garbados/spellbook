@@ -1,12 +1,18 @@
 ;; shadow-cljs configuration
 {:source-paths
- ["src"]
+ ["src"
+  "test"]
 
  :dependencies
- [[reagent "1.2.0"]]
+ [[markdown-clj "1.11.7"]
+  [reagent "1.2.0"]]
 
  :builds
  {:app
   {:target :browser
    :output-dir "www/js"
-   :modules {:main {:entries [spellbook.core]}}}}}
+   :modules {:main {:entries [spellbook.app]}}}
+  :test
+  {:target :node-test
+   :output-to "out/test.js"
+   :autorun true}}}
