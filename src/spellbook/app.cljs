@@ -1,77 +1,75 @@
 (ns spellbook.app
-  (:require [markdown.core :as md]
+  (:require [clojure.string :as string]
+            [markdown.core :as md]
             [reagent.core :as r]
             [reagent.dom :as rd]
-            [spellbook.db :as db]))
+            [spellbook.db :as db]
+            [pouchdb-jsonviews :as jsonview]))
 
-(def to-index [:type :text :created-at])
+(def to-index [:type :created-at :tags])
 
-(defonce -db (db/init-db "spellbook"))
+(defonce db (db/init-db "spellbook"))
 (defonce -state (r/atom :loading))
-(defonce -paginator (r/atom nil))
-(defonce -entries (r/atom nil))
-
-(-> (db/paginate-view -db "spellbook/text" {:reduce false
-                                            :include_docs true
-                                            :startkey ["Hello"]
-                                            :endkey ["Hello" "Z"]})
-    db/next-page
-    (.then #(.log js/console (clj->js %))))
-
-(defn next-page []
-  (.then (db/next-page @-paginator)
-         #(reset! -entries %)))
-
-(defn prev-page []
-  (.then (db/prev-page @-paginator)
-         #(reset! -entries %)))
-
-(defn same-page []
-  (.then (db/same-page @-paginator)
-         #(reset! -entries %)))
 
 (defn format-date [ms]
   (.toLocaleString (js/Date. ms)))
 
-(defn- save-entry [id text]
+(defn- save-entry [id text tags]
   (let [value {:text text
                :type "entry"
+               :tags (string/split tags #",\s*")
                :created-at (.now js/Date)
                :updated-at nil}]
-    (db/save-doc -db id value to-index)))
+    (db/save-doc db id value to-index)))
 
-(defn- update-entry [id text]
-  (-> (db/resolve-id -db id)
+(defn- update-entry [id text tags]
+  (-> (db/resolve-id db id)
       (.then #(assoc %
                      :text text
+                     :tags (string/split tags #",\s+")
                      :updated-at (.now js/Date)))
-      (.then #(db/upsert-doc -db id % to-index))))
+      (.then #(db/upsert-doc db id % to-index))))
 
-(defn- setup-recent []
-  (let [paginator (db/paginate-view -db "spellbook/entries" {:reduce false
-                                                             :include_docs true})]
-    (reset! -paginator paginator)
-    (.then (next-page)
-           #(reset! -state :index))))
+;; (defn fetch-archive)
 
-(defn setup-search [term]
-  (let [paginator (db/paginate-view -db "spellbook/text" {:reduce false
-                                                          :startkey [term]
-                                                          :endkey [term "Z"]
-                                                          :include_docs true})]
-    (reset! -paginator paginator)
-    (.then (next-page)
-           #(reset! -state :search))))
+;; (defn fetch-tag-counts []
+;;   (.then
+;;    (db/query-view "spellbook/tags" {:reduce true :group true :group_level 1})
+;;    (fn [{:keys [rows]}]
+;;      (for [{:keys [key value]} rows]
+      ;;  [(first key) value]))))
 
-(defn- setup []
-  (-> (db/put-view -db "spellbook" "entries"
-                   {:map {:key [{:access "type" :emit true :equals "entry"}
-                                {:access "created-at" :transform :datetime}]}
-                    :reduce "_count"})
-      (.then #(db/put-view -db "spellbook" "text"
+(defn setup-db []
+  (.all js/Promise (for [[view-name json-view]
+                         [["archive"
                            {:map {:key [{:access "type" :emit true :equals "entry"}
-                                        {:access "text" :transform :words :splay true}]}}))
-      (.then setup-recent)))
+                                        {:access "created-at" :transform :datetime}]}
+                            :reduce "_count"}]
+                          ["tags"
+                           {:map {:key [{:access "type" :emit true :equals "entry"}
+                                        {:access "tags" :splay true}
+                                        "created-at"]}
+                            :reduce "_count"}]]]
+                     (db/put-view db "spellbook" view-name json-view))))
+
+;; (defn- setup-recent []
+;;   (let [paginator (db/paginate-view -db "spellbook/archive" {:reduce false
+;;                                                              :include_docs true})]
+;;     (reset! -paginator paginator)
+;;     (.then (next-page)
+;;            #(reset! -state :index))))
+
+;; (defn setup-search [term]
+;;   (let [paginator (db/paginate-view -db "spellbook/tags" {:reduce false
+;;                                                           :startkey [term]
+;;                                                           :endkey [term "Z"]
+;;                                                           :include_docs true})]
+;;     (reset! -paginator paginator)
+;;     (.then (next-page)
+;;            #(reset! -state :search))))
+
+(defn- initial-setup []
+  (setup-db))
 
 (defn- prompt-text [value & [on-submit]]
   [:input.input
@@ -96,31 +94,27 @@
     [:div.level-item
      [:h1.title "📖 Spellbook"]]
     [:div.level-item
-     [:button.button.is-link
+     [:button.button.is-primary
       {:on-click #(reset! -state :new-entry)}
       "✍️ New Entry"]]
     [:div.level-item
-     [:button.button.is-primary
-      {:on-click
-       (fn [& _]
-         (.then (setup-recent)
-                #(reset! -state :index)))}
+     [:button.button.is-info
+      {:on-click #(reset! -state :index)}
       "🔮 Recent"]]
-    [:div.level-item
-     [:button.button.is-primary
-      {:on-click
-       (fn [& _]
-         #_(.then (setup-archive)
-                #(reset! -state :archive)))}
-      "🗓️ Archive"]]
-    ]
+    #_[:div.level-item
+       [:button.button.is-primary
+        {:on-click
+         (fn [& _]
+           #_(.then (setup-archive)
+                    #(reset! -state :archive)))}
+        "🗓️ Archive"]]]
    [:div.level-right
-    [:div.level-item
-     [:div.field
-      [:div.control.has-icons-right
-       [prompt-text (r/atom "") setup-search]
-       [:span.icon.is-small.is-right
-        [:i.fas.fa-magnifying-glass]]]]]
+    #_[:div.level-item
+       [:div.field
+        [:div.control.has-icons-right
+         [prompt-text (r/atom "")] ; TODO
+         [:span.icon.is-small.is-right
+          [:i.fas.fa-magnifying-glass]]]]]
     [:div.level-item
      [:a.button.is-info.is-light
       {:href "https://github.com/garbados/spellbook"
@@ -134,77 +128,116 @@
         "DFB 💖"]]]]]])
 
 (defn- loading []
-  (.then (setup)
-         #(if (seq @-entries)
-            (reset! -state :index)
-            (reset! -state :new-entry)))
+  (.then (initial-setup)
+         #(reset! -state :index))
   [:div.container>div.box>div.content
    [:h1 "Loading..."]])
 
-(defn- new-entry [-text]
-  [:div.container>div.box>div.content
-   [:h3 "✨ New Entry"]
+(defn- entry-form [-text -tags]
+  [:<>
    [:div.field
+    [:label.label "What's on your mind?"]
     [:div.control
      [prompt-textarea -text]]
     [:p.help "Use markdown!"]]
+   [:div.field
+    [:label.label "Tags, for searching and organizing."]
+    [:div.control
+     [prompt-text -tags]]
+    [:p.help "Separate tags with commas!"]]])
+
+(defn- new-entry [-text -tags]
+  [:div.container>div.box>div.content
+   [:h3 "✨ New Entry"]
+   [entry-form -text -tags]
    [:p
     [:button.button.is-link.is-fullwidth
-     {:on-click
-      (fn [& _]
-        (-> (save-entry (random-uuid) @-text)
-            (.then #(same-page))
-            (.then #(reset! -state :index))))}
+     {:on-click #(save-entry (str (random-uuid)) @-text @-tags)}
      "Save Entry"]]])
 
-(defn- some-entry [id created-at updated-at -text -editing?]
+(defn- some-entry [id -doc -editing? delete!]
   (if @-editing?
-    [:div.box>div.content
-     [:div.field
-      [:div.control
-       [prompt-textarea -text]]
-      [:p.help "Use markdown!"]]
-     [:p
-      [:button.button.is-primary.is-fullwidth
-       {:on-click
-        (fn [& _]
-          (-> (update-entry id @-text)
-              (.then #(same-page))
-              (.then #(reset! -editing? false))))}
-       "Update Entry"]]
-     [:p
-      [:button.button.is-caution.is-light.is-fullwidth
-       {:on-click #(reset! -editing? false)}
-       "Cancel"]]]
-    [:div.container>div.box>div.content
-     [:div {:dangerouslySetInnerHTML {:__html (md/md->html @-text)}}]
-     [:hr]
-     [:div.level
-      [:div.level-left
-       [:div.level-item
-        [:p [:em (str "Created " (format-date created-at))]]]] 
-      (when updated-at
-        [:div.level-right
+    (let [doc @-doc
+          -text (r/atom (:text doc))
+          -tags (r/atom (string/join ", " (:tags doc)))]
+      [:div.box>div.content
+       [entry-form -text -tags]
+       [:p
+        [:button.button.is-primary.is-fullwidth
+         {:on-click
+          (fn [& _]
+            (-> (update-entry id @-text @-tags)
+                (.then #(db/resolve-id db id))
+                (.then #(do (reset! -editing? false)
+                            (reset! -doc %)))))}
+         "Update Entry"]]
+       [:p
+        [:button.button.is-caution.is-light.is-fullwidth
+         {:on-click #(reset! -editing? false)}
+         "Cancel"]]])
+    (let [{:keys [text tags created-at updated-at]} @-doc]
+      [:div.box>div.content
+       [:div {:dangerouslySetInnerHTML {:__html (md/md->html text)}}]
+       [:hr]
+       [:div.tags
+        (for [tag tags]
+          ^{:key tag} [:span.tag.is-info tag])]
+       [:div.level
+        [:div.level-left
          [:div.level-item
-          [:p [:em (str "Updated " (format-date updated-at))]]]])]
-     [:div.columns
-      [:div.column.is-half
-       [:button.button.is-warning.is-light.is-fullwidth
-        {:on-click #(reset! -editing? true)}
-        "Edit Entry"]]
-      [:div.column.is-half
-       [:button.button.is-danger.is-light.is-fullwidth
-        {:on-click #(.then (db/remove-id! -db id) same-page)}
-        "Delete Entry"]]]]))
+          [:p [:em (str "Created " (format-date created-at))]]]] 
+        (when updated-at
+          [:div.level-right
+           [:div.level-item
+            [:p [:em (str "Updated " (format-date updated-at))]]]])]
+       [:div.columns
+        [:div.column.is-half
+         [:button.button.is-warning.is-light.is-fullwidth
+          {:on-click #(reset! -editing? true)}
+          "Edit Entry"]]
+        [:div.column.is-half
+         [:button.button.is-danger.is-light.is-fullwidth
+          {:on-click #(delete!)}
+          "Delete Entry"]]]])))
 
-(defn- list-entries [title]
+(defn- list-entries [title paginator -entries]
   [:div.container>div.box>div.content
    [:h3 title]
    (for [entry @-entries
          :let [{:keys [_id]} (-> entry :doc (js->clj :keywordize-keys true))
-               {:keys [text created-at updated-at]} (-> entry :doc db/unmarshal-doc)]]
+               -doc (r/atom (db/unmarshal-doc (:doc entry)))
+               delete!
+               (fn [& _]
+                 (-> (db/remove-id! db _id)
+                     (.then #(db/same-page paginator))
+                     (.then #(reset! -entries %))))]]
      ^{:key _id}
-     [some-entry _id created-at updated-at (r/atom text) (r/atom false)])])
+     [some-entry _id -doc (r/atom false) delete!])
+   [:hr]
+   [:div.columns
+    [:div.column.is-half
+     (when (db/has-prev-page? paginator)
+       [:button.button.is-link.is-light.is-fullwidth
+        {:on-click
+         #(.then (db/prev-page paginator)
+                 (partial reset! -entries))}
+        "Previous Page"])]
+    [:div.column.is-half
+     (when (db/has-next-page? paginator)
+       [:button.button.is-link.is-light.is-fullwidth
+        {:on-click
+         #(.then (db/next-page paginator)
+                 (partial reset! -entries))}
+        "Next Page"])]]])
+
+(defn- list-recent []
+  (let [paginator (db/paginate-view db "spellbook/archive" {:reduce false
+                                                            :limit 1
+                                                            :include_docs true})
+        -entries (r/atom [])]
+    (.then (db/same-page paginator)
+           #(reset! -entries %))
+    [list-entries "Recent" paginator -entries]))
 
 (defn- app []
   [:section.section
@@ -213,9 +246,8 @@
    [:div.block
     (case @-state
       :loading   [loading]
-      :new-entry [new-entry (r/atom "")]
-      :index     [list-entries "Recent"]
-      :search    [list-entries "Search"]
+      :new-entry [new-entry (r/atom "") (r/atom "")]
+      :index     [list-recent]
       ;;:archive [view-archive]
       )]])
 

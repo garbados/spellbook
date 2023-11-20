@@ -50,14 +50,23 @@
 (defn put-view [db id view-name json-view]
   (.putJsonView ^js/Object db id view-name (clj->js json-view)))
 
+(defn query-view
+  ([db view-id]
+   (query-view db view-id {}))
+  ([db view-id opts]
+   (.query ^js/Object db view-id (clj->js opts))))
+
 (defn paginate-view
   ([db view-id]
    (paginate-view db view-id {}))
   ([db view-id opts]
    (.paginateQuery ^js/Object db view-id (clj->js opts))))
 
+(defn has-prev-page? [paginator]
+  (.-hasPrevPage ^js/Object paginator))
+
 (defn has-next-page? [paginator]
-  (.-_hasNextPage ^js/Object paginator))
+  (.-hasNextPage ^js/Object paginator))
 
 (defn normalize-page [results]
   (js->clj (.-rows results) :keywordize-keys true))

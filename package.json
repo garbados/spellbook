@@ -16,7 +16,7 @@
   "dependencies": {
     "pouchdb": "^8.0.1",
     "pouchdb-jsonviews": "^1.2.0",
-    "pouchdb-paginators": "^2.0.0",
+    "pouchdb-paginators": "../pouchdb-paginators",
     "react-dom": "^18.2.0"
   }
 }

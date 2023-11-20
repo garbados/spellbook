@@ -1,0 +1,1 @@
+curl https://jenil.github.io/bulmaswatch/$1/bulmaswatch.min.css > www/css/bulma.min.css
