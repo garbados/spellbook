@@ -9,35 +9,67 @@
 
 (defn init-db
   ([name]
-   (let [db (new pouchdb name)]
-     (.paginate db)
-     db))
+   (new pouchdb name))
   ([name opts]
-   (let [db (new pouchdb name opts)]
-     (.paginate db)
-     db)))
+   (new pouchdb name opts)))
 
-(defn marshal-doc [base id value & to-index]
-  (->> (select-keys value (or to-index []))
-       (merge base
-              {:_id (str id)
-               :-value (pr-str value)})
-       clj->js))
+(defn unmarshal-doc [doc]
+  (edn/read-string (:-value (js->clj doc :keywordize-keys true))))
 
-(defn save-doc [db id value & to-index]
-  (.put db (marshal-doc {} id value to-index)))
+(defn marshal-doc [base value to-index]
+  (clj->js
+   (merge base
+          (select-keys value to-index)
+          {:-value (pr-str value)})))
 
-(defn upsert-doc [db id value & to-index]
-  (.catch (save-doc db id value to-index)
-          (fn [_]
-            (.then (.get db id)
-                   #(.put db (marshal-doc % id value to-index))))))
+(defn save-doc
+  ([db id value]
+   (save-doc db id value []))
+  ([db id value to-index]
+   (.put db (marshal-doc {:_id (str id)} value to-index))))
+
+(defn upsert-doc
+  ([db id value]
+   (upsert-doc db id value []))
+  ([db id value to-index]
+   (.catch (save-doc db id value to-index)
+           (fn [e]
+             (if (= 409 (.-status e))
+               (.then (.get db id)
+                      #(.put db (marshal-doc (js->clj % {:keywordize-keys true})
+                                             value to-index)))
+               (throw e))))))
 
 (defn resolve-id [db id]
-  (.then (.get db id)
-         (fn [doc]
-           (edn/read-string (.-value doc)))))
+  (.then (.get db id) unmarshal-doc))
 
 (defn remove-id! [db id]
   (-> (.get db id)
       (.then #(.remove db %))))
+
+(defn put-view [db id view-name json-view]
+  (.putJsonView ^js/Object db id view-name (clj->js json-view)))
+
+(defn paginate-view
+  ([db view-id]
+   (paginate-view db view-id {}))
+  ([db view-id opts]
+   (.paginateQuery ^js/Object db view-id (clj->js opts))))
+
+(defn has-next-page? [paginator]
+  (.-_hasNextPage ^js/Object paginator))
+
+(defn normalize-page [results]
+  (js->clj (.-rows results) :keywordize-keys true))
+
+(defn next-page [paginator]
+  (.then (.getNextPage ^js/Object paginator)
+         normalize-page))
+
+(defn prev-page [paginator]
+  (.then (.getPrevPage ^js/Object paginator)
+         normalize-page))
+
+(defn same-page [paginator]
+  (.then (.getSamePage ^js/Object paginator)
+         normalize-page))

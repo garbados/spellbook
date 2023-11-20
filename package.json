@@ -6,7 +6,8 @@
     "build": "shadow-cljs compile app",
     "dev": "shadow-cljs watch app",
     "serve": "serve www",
-    "test": "shadow-cljs compile test"
+    "test": "shadow-cljs compile test",
+    "dev-test": "shadow-cljs watch test"
   },
   "devDependencies": {
     "serve": "^14.2.1",
@@ -15,7 +16,7 @@
   "dependencies": {
     "pouchdb": "^8.0.1",
     "pouchdb-jsonviews": "^1.2.0",
-    "pouchdb-paginators": "^1.1.0",
+    "pouchdb-paginators": "^2.0.0",
     "react-dom": "^18.2.0"
   }
 }
