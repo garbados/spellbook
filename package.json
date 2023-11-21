@@ -1,5 +1,7 @@
 {
   "name": "spellbook",
+  "description": "A diary. Stores everything in your browser. Use [here](https://garbados.github.io/spellbook).",
+  "license": "Apache-2.0",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -18,5 +20,20 @@
     "pouchdb": "^8.0.1",
     "pouchdb-jsonviews": "^1.2.1",
     "react-dom": "^18.2.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/garbados/spellbook.git"
+  },
+  "keywords": [
+    "diary",
+    "pouchdb",
+    "react",
+    "app"
+  ],
+  "author": "Diana Fernanda Belle <garbados@gmail.com>",
+  "bugs": {
+    "url": "https://github.com/garbados/spellbook/issues"
+  },
+  "homepage": "https://github.com/garbados/spellbook#readme"
 }
