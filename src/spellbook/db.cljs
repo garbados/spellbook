@@ -2,12 +2,9 @@
   (:require [clojure.edn :as edn]
             [clojure.spec.alpha :as s]
             ["pouchdb" :as pouchdb]
-            ["pouchdb-jsonviews" :as jsonview]
-            ["pouchdb-paginators" :as paginators]
-            [pouchdb-paginators :as paginators]))
+            ["pouchdb-jsonviews" :as jsonview]))
 
 (.plugin pouchdb jsonview)
-(.plugin pouchdb paginators)
 
 (defn init-db
   ([name]
@@ -63,11 +60,11 @@
 (s/def ::skip nat-int?)
 (s/def ::next-page? boolean?)
 (s/def ::prev-page? boolean?)
-(s/def ::paginator (s/keys [::f
-                            ::skip
-                            ::initial
-                            ::next-page?
-                            ::prev-page?]))
+(s/def ::paginator (s/keys :req-un [::f
+                                    ::skip
+                                    ::initial
+                                    ::next-page?
+                                    ::prev-page?]))
 
 (defn make-paginator [f limit opts]
   {:f f
