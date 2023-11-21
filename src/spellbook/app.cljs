@@ -29,7 +29,7 @@
   (.toLocaleString (js/Date. ms)))
 
 (defn format-tags [tags]
-  (filter (comp pos-int? count) (string/split tags #",\s+")))
+  (filter (comp pos-int? count) (string/split tags #",\s*")))
 
 (defn- save-entry [id text tags]
   (let [value {:text text
@@ -63,9 +63,6 @@
                                         {:access "text" :transform :words :splay true}
                                         "created-at"]}
                             :reduce "_count"}))))
-
-(.then (db/query-view db "spellbook/text" {:group true})
-       #(.log js/console (clj->js %)))
 
 (defn- initial-setup []
   (setup-db))
@@ -163,51 +160,57 @@
     (let [doc @-doc
           -text (r/atom (:text doc))
           -tags (r/atom (string/join ", " (:tags doc)))]
-      [:div.box>div.content
-       [entry-form -text -tags]
-       [:p
-        [:button.button.is-primary.is-fullwidth
-         {:on-click
-          (fn [& _]
-            (-> (update-entry id @-text @-tags)
-                (.then #(db/resolve-id db id))
-                (.then #(do (reset! -editing? false)
-                            (reset! -doc %)))))}
-         "Update Entry"]]
-       [:p
-        [:button.button.is-caution.is-light.is-fullwidth
-         {:on-click #(reset! -editing? false)}
-         "Cancel"]]])
+      [:div.card
+       [:div.card-content>div.content
+        [entry-form -text -tags]]
+       [:div.card-footer
+        [:span.card-footer-item
+         [:button.button.is-primary.is-fullwidth.is-light
+          {:on-click
+           (fn [& _]
+             (-> (update-entry id @-text @-tags)
+                 (.then #(db/resolve-id db id))
+                 (.then #(do (reset! -editing? false)
+                             (reset! -doc %)))))}
+          [:span
+           [:i.fa-solid.fa-circle-check]
+           " Update"]]]
+        [:span.card-footer-item
+         [:button.button.is-warning.is-fullwidth.is-light
+          {:on-click #(reset! -editing? false)}
+          [:span
+           [:i.fa-solid.fa-circle-xmark]
+           " Cancel"]]]]])
     (let [{:keys [text tags created-at updated-at]} @-doc]
-      [:div.box>div.content
-       [:div {:dangerouslySetInnerHTML {:__html (md/md->html text)}}]
-       [:hr]
-       (when (seq tags)
-         [:div.tags
-          (for [tag tags]
-            ^{:key tag}
-            [:a.tag.is-info
-             {:on-click #(do (reset! -arg [tag])
-                             (reset! -state :tag))}
-             tag])])
-       [:div.level
-        [:div.level-left
-         [:div.level-item
-          [:p [:em (str "Created " (format-date created-at))]]]]
-        (when updated-at
-          [:div.level-right
-           [:div.level-item
-            [:p [:em (str "Updated " (format-date updated-at))]]]])]
-       [:div.columns
-        [:div.column.is-half
-         [:button.button.is-warning.is-light.is-fullwidth
+      [:div.card
+       [:div.card-content>div.content
+        [:p {:dangerouslySetInnerHTML {:__html (md/md->html text)}}]
+        (when (seq tags)
+          [:p.tags
+           (for [tag tags]
+             ^{:key tag}
+             [:a.tag.is-info
+              {:on-click #(do (reset! -arg [tag])
+                              (reset! -state :tag))}
+              tag])])
+        [:div.level
+         [:div.level-left
+          [:div.level-item
+           [:p [:em (str "Created " (format-date created-at))]]]]
+         (when updated-at
+           [:div.level-right
+            [:div.level-item
+             [:p [:em (str "Updated " (format-date updated-at))]]]])]]
+       [:div.card-footer
+        [:span.card-footer-item
+         [:button.button.is-warning.is-fullwidth.is-light
           {:on-click #(reset! -editing? true)}
-          "Edit Entry"]]
-        [:div.column.is-half
-         [:button.button.is-danger.is-light.is-fullwidth
+          "📝 Edit"]]
+        [:span.card-footer-item
+         [:button.button.is-danger.is-fullwidth.is-light
           {:on-click #(when (js/confirm "Delete this entry?")
                         (delete!))}
-          "Delete Entry"]]]])))
+          "🗑 Delete"]]]])))
 
 (defn- list-entries [title -paginator -entries]
   (let [page-f! (fn [f]
@@ -226,18 +229,22 @@
                  delete! #(.then (db/remove-id! db _id) same-page!)]]
        ^{:key _id}
        [some-entry _id -doc (r/atom false) delete!])
-     [:hr]
-     [:div.columns
-      [:div.column.is-half
-       [:button.button.is-link.is-light.is-fullwidth
-        {:disabled (not (:prev-page? @-paginator))
-         :on-click prev-page!}
-        "Previous Page"]]
-      [:div.column.is-half
-       [:button.button.is-link.is-light.is-fullwidth
-        {:disabled (not (:next-page? @-paginator))
-         :on-click next-page!}
-        "Next Page"]]]]))
+     (when (and (seq @-entries)
+                (or (:prev-page? @-paginator)
+                    (:next-page? @-paginator)))
+       [:<>
+        [:hr]
+        [:div.columns
+         [:div.column.is-half
+          [:button.button.is-link.is-light.is-fullwidth
+           {:disabled (not (:prev-page? @-paginator))
+            :on-click prev-page!}
+           "Previous Page"]]
+         [:div.column.is-half
+          [:button.button.is-link.is-light.is-fullwidth
+           {:disabled (not (:next-page? @-paginator))
+            :on-click next-page!}
+           "Next Page"]]]])]))
 
 (defn- list-recent []
   ;; only re-render the page when -entries changes; no r/atom for paginator
@@ -250,7 +257,9 @@
     (.then (db/next-page @-paginator)
            (fn [[paginator rows]]
              (reset! -paginator paginator)
-             (reset! -entries rows)))
+             (if (seq rows)
+               (reset! -entries rows)
+               (reset! -state :new-entry))))
     [list-entries "Recent" -paginator -entries]))
 
 (defn- show-archive [-results]
@@ -260,18 +269,18 @@
            #(reset! -results %)))
   [:div.container>div.box>div.content
    [:h3 "Archive"]
-   [:div.field.is-grouped]
-   (for [row @-results
-         :let [[year month] (:key row)
-               n (:value row)]]
-     ^{:key (:key row)}
-     [:div.control
-      [:div.tags.has-addons
-       [:a
-        {:on-click #(do (reset! -arg (:key row))
-                        (reset! -state :month))}
-        [:span.tag.is-dark (str year ", " (month->name month))]
-        [:span.tag.is-info n]]]])])
+   [:div.field.is-grouped
+    (for [row @-results
+          :let [[year month] (:key row)
+                n (:value row)]]
+      ^{:key (:key row)}
+      [:div.control
+       [:div.tags.has-addons
+        [:a
+         {:on-click #(do (reset! -arg (:key row))
+                         (reset! -state :month))}
+         [:span.tag.is-dark (str year ", " (month->name month))]
+         [:span.tag.is-info n]]]])]])
 
 (defn list-archive [startkey]
   (let [[year month] startkey
