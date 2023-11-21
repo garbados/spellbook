@@ -184,7 +184,7 @@
           {:on-click #(delete!)}
           "Delete Entry"]]]])))
 
-(defn- list-entries [title paginator -entries]
+(defn- list-entries [title paginator -entries -has-prev-page? -has-next-page?]
   [:div.container>div.box>div.content
    [:h3 title]
    (for [entry @-entries
@@ -200,28 +200,42 @@
    [:hr]
    [:div.columns
     [:div.column.is-half
-     (when (db/has-prev-page? paginator)
-       [:button.button.is-link.is-light.is-fullwidth
-        {:on-click
-         #(.then (db/prev-page paginator)
-                 (partial reset! -entries))}
-        "Previous Page"])]
+     [:button.button.is-link.is-light.is-fullwidth
+      {:disabled (not @-has-prev-page?)
+       :on-click
+       (fn [& _]
+         (.pop (.-lastopts paginator))
+         (.then (db/same-page paginator)
+                #(if (and (seq %) (db/has-prev-page? paginator))
+                   (do
+                     (.log js/console (clj->js %))
+                     (reset! -has-next-page? true)
+                     (reset! -entries %))
+                   (reset! -has-prev-page? false))))}
+      "Previous Page"]]
     [:div.column.is-half
-     (when (db/has-next-page? paginator)
-       [:button.button.is-link.is-light.is-fullwidth
-        {:on-click
-         #(.then (db/next-page paginator)
-                 (partial reset! -entries))}
-        "Next Page"])]]])
+     [:button.button.is-link.is-light.is-fullwidth
+      {:disabled (not @-has-next-page?)
+       :on-click
+       (fn [& _]
+         (.then (db/next-page paginator)
+                #(if (seq %)
+                   (do
+                     (reset! -has-prev-page? true)
+                     (reset! -entries %))
+                   (reset! -has-next-page? false))))}
+      "Next Page"]]]])
 
 (defn- list-recent []
   (let [paginator (db/paginate-view db "spellbook/archive" {:reduce false
                                                             :limit 2
                                                             :include_docs true})
-        -entries (r/atom [])]
+        -entries (r/atom [])
+        -has-prev-page? (r/atom false)
+        -has-next-page? (r/atom true)]
     (.then (db/next-page paginator)
            #(reset! -entries %))
-    [list-entries "Recent" paginator -entries]))
+    [list-entries "Recent" paginator -entries -has-prev-page? -has-next-page?]))
 
 (defn- app []
   [:section.section
