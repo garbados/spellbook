@@ -49,44 +49,51 @@
 (defn put-view [db id view-name json-view]
   (.putJsonView ^js/Object db id view-name (clj->js json-view)))
 
+(defn normalize-results [results]
+  (js->clj (.-rows results) :keywordize-keys true))
+
 (defn query-view
   ([db view-id]
    (query-view db view-id {}))
   ([db view-id opts]
-   (.query ^js/Object db view-id (clj->js opts))))
-
+   (.then (.query ^js/Object db view-id (clj->js opts)) normalize-results)))
 
 (s/def ::f ifn?)
 (s/def ::skip nat-int?)
+(s/def ::limit nat-int?)
+(s/def ::initial map?)
 (s/def ::next-page? boolean?)
 (s/def ::prev-page? boolean?)
 (s/def ::paginator (s/keys :req-un [::f
                                     ::skip
+                                    ::limit
                                     ::initial
                                     ::next-page?
                                     ::prev-page?]))
 
-(defn make-paginator [f limit opts]
+(defn make-paginator [f opts]
   {:f f
    :skip 0
-   :limit limit
+   :limit (:limit opts 20)
    :initial opts
    :next-page? true
    :prev-page? false})
 
-(defn normalize-page [results]
-  (js->clj (.-rows results) :keywordize-keys true))
-
-(defn call-paginator [paginator opts]
-  (.then ((:f paginator) (clj->js opts)) normalize-page))
+(s/fdef make-paginator
+  :args (s/cat :f ifn?
+               :limit nat-int?
+               :opts ::initial)
+  :ret ::paginator)
 
 (defn paginate-view
   ([db view-id]
    (paginate-view db view-id {}))
   ([db view-id opts]
-   (let [f #(.paginateQuery ^js/Object db view-id (clj->js %))]
-     (make-paginator f 20 opts))
-   ))
+   (let [f #(.query ^js/Object db view-id (clj->js %))]
+     (make-paginator f opts))))
+
+(defn- call-paginator [paginator opts]
+  (.then ((:f paginator) (clj->js opts)) normalize-results))
 
 (defn next-page [paginator]
   (let [skip (:skip paginator)
@@ -99,11 +106,12 @@
        [(-> paginator
             (update :skip + (:limit paginator))
             (assoc :next-page? (= (count rows)
-                                  (:limit paginator))))
+                                  (:limit paginator)))
+            (assoc :prev-page? (not= 0 skip)))
         rows]))))
 
 (defn same-page [paginator]
-  (let [skip (:skip paginator)
+  (let [skip (max 0 (- (:skip paginator) (:limit paginator)))
         opts (assoc (:initial paginator)
                     :limit (:limit paginator)
                     :skip skip)]
@@ -114,7 +122,7 @@
         rows]))))
 
 (defn prev-page [paginator]
-  (let [skip (max 0 (- (:skip paginator) (:limit paginator)))
+  (let [skip (max 0 (- (:skip paginator) (* 2 (:limit paginator))))
         opts (assoc (:initial paginator)
                     :limit (:limit paginator)
                     :skip skip)]
@@ -124,5 +132,5 @@
        [(-> paginator
             (update :skip - (:limit paginator))
             (update :skip max 0)
-            (assoc :prev-page? (= 0 skip)))
+            (assoc :prev-page? (not= 0 skip)))
         rows]))))

@@ -3,21 +3,38 @@
             [markdown.core :as md]
             [reagent.core :as r]
             [reagent.dom :as rd]
-            [spellbook.db :as db]
-            [pouchdb-jsonviews :as jsonview]))
+            [spellbook.db :as db]))
 
-(def to-index [:type :created-at :tags])
+(def to-index [:type :text :created-at :tags])
+
+(def month->name
+  {"01"  "January"
+   "02"  "February"
+   "03"  "March"
+   "04"  "April"
+   "05"  "May"
+   "06"  "June"
+   "07"  "July"
+   "08"  "August"
+   "09"  "September"
+   "10" "October"
+   "11" "November"
+   "12" "December"})
 
 (defonce db (db/init-db "spellbook"))
 (defonce -state (r/atom :loading))
+(defonce -arg (atom nil))
 
 (defn format-date [ms]
   (.toLocaleString (js/Date. ms)))
 
+(defn format-tags [tags]
+  (filter (comp pos-int? count) (string/split tags #",\s+")))
+
 (defn- save-entry [id text tags]
   (let [value {:text text
                :type "entry"
-               :tags (string/split tags #",\s*")
+               :tags (format-tags tags)
                :created-at (.now js/Date)
                :updated-at nil}]
     (db/save-doc db id value to-index)))
@@ -26,30 +43,29 @@
   (-> (db/resolve-id db id)
       (.then #(assoc %
                      :text text
-                     :tags (string/split tags #",\s+")
+                     :tags (format-tags tags)
                      :updated-at (.now js/Date)))
       (.then #(db/upsert-doc db id % to-index))))
-
-;; (defn fetch-archive)
-
-;; (defn fetch-tag-counts []
-;;   (.then
-;;    (db/query-view "spellbook/tags" {:reduce true :group true :group_level 1})
-;;    (fn [{:keys [rows]}]
-;;      (for [{:keys [key value]} rows]
-      ;;  [(first key) value]))))
 
 (defn setup-db []
   (-> (.resolve js/Promise)
       (.then #(db/put-view db "spellbook" "archive"
                            {:map {:key [{:access "type" :emit true :equals "entry"}
-                                        {:access "created-at" :transform :datetime}]}
+                                        {:access "created-at" :transform :datetime :flatten true}]}
                             :reduce "_count"}))
       (.then #(db/put-view db "spellbook" "tags"
                            {:map {:key [{:access "type" :emit true :equals "entry"}
                                         {:access "tags" :splay true}
                                         "created-at"]}
+                            :reduce "_count"}))
+      (.then #(db/put-view db "spellbook" "text"
+                           {:map {:key [{:access "type" :emit true :equals "entry"}
+                                        {:access "text" :transform :words :splay true}
+                                        "created-at"]}
                             :reduce "_count"}))))
+
+(.then (db/query-view db "spellbook/text" {:group true})
+       #(.log js/console (clj->js %)))
 
 (defn- initial-setup []
   (setup-db))
@@ -72,43 +88,46 @@
     :value @value}])
 
 (defn- navbar []
-  [:div.level
-   [:div.level-left
-    [:div.level-item
-     [:h1.title "📖 Spellbook"]]
-    [:div.level-item
-     [:button.button.is-primary
-      {:on-click #(reset! -state :new-entry)}
-      "✍️ New Entry"]]
-    [:div.level-item
-     [:button.button.is-info
-      {:on-click #(reset! -state :index)}
-      "🔮 Recent"]]
-    #_[:div.level-item
+  (let [-search (r/atom "")]
+    [:div.level
+     [:div.level-left
+      [:div.level-item
+       [:h1.title "📖 Spellbook"]]
+      [:div.level-item
        [:button.button.is-primary
-        {:on-click
-         (fn [& _]
-           #_(.then (setup-archive)
-                    #(reset! -state :archive)))}
-        "🗓️ Archive"]]]
-   [:div.level-right
-    #_[:div.level-item
+        {:on-click #(reset! -state :new-entry)}
+        "✍️ New Entry"]]
+      [:div.level-item
+       [:button.button.is-info
+        {:on-click #(reset! -state :index)}
+        "🔮 Recent"]]
+      [:div.level-item
+       [:button.button.is-info
+        {:on-click #(reset! -state :archive)}
+        "🗓️ Archive"]]
+      [:div.level-item
+       [:button.button.is-info
+        {:on-click #(reset! -state :tags)}
+        "🏷 Tags"]]]
+     [:div.level-right
+      [:div.level-item
        [:div.field
         [:div.control.has-icons-right
-         [prompt-text (r/atom "")] ; TODO
+         [prompt-text -search #(do (reset! -arg (.toLowerCase @-search))
+                                   (reset! -state :search))]
          [:span.icon.is-small.is-right
           [:i.fas.fa-magnifying-glass]]]]]
-    [:div.level-item
-     [:a.button.is-info.is-light
-      {:href "https://github.com/garbados/spellbook"
-       :target "_blank"}
-      "Source 👩‍💻"]]
-    [:div.level-item
-     [:p.subtitle
-      [:strong "A diary by "
-       [:a {:href "https://www.patreon.com/garbados"
-            :target "_blank"}
-        "DFB 💖"]]]]]])
+      [:div.level-item
+       [:a.button.is-info.is-light
+        {:href "https://github.com/garbados/spellbook"
+         :target "_blank"}
+        "Source 👩‍💻"]]
+      [:div.level-item
+       [:p.subtitle
+        [:strong "A diary by "
+         [:a {:href "https://www.patreon.com/garbados"
+              :target "_blank"}
+          "DFB 💖"]]]]]]))
 
 (defn- loading []
   (.then (initial-setup)
@@ -163,13 +182,18 @@
       [:div.box>div.content
        [:div {:dangerouslySetInnerHTML {:__html (md/md->html text)}}]
        [:hr]
-       [:div.tags
-        (for [tag tags]
-          ^{:key tag} [:span.tag.is-info tag])]
+       (when (seq tags)
+         [:div.tags
+          (for [tag tags]
+            ^{:key tag}
+            [:a.tag.is-info
+             {:on-click #(do (reset! -arg [tag])
+                             (reset! -state :tag))}
+             tag])])
        [:div.level
         [:div.level-left
          [:div.level-item
-          [:p [:em (str "Created " (format-date created-at))]]]] 
+          [:p [:em (str "Created " (format-date created-at))]]]]
         (when updated-at
           [:div.level-right
            [:div.level-item
@@ -181,61 +205,144 @@
           "Edit Entry"]]
         [:div.column.is-half
          [:button.button.is-danger.is-light.is-fullwidth
-          {:on-click #(delete!)}
+          {:on-click #(when (js/confirm "Delete this entry?")
+                        (delete!))}
           "Delete Entry"]]]])))
 
-(defn- list-entries [title paginator -entries -has-prev-page? -has-next-page?]
-  [:div.container>div.box>div.content
-   [:h3 title]
-   (for [entry @-entries
-         :let [{:keys [_id]} (-> entry :doc (js->clj :keywordize-keys true))
-               -doc (r/atom (db/unmarshal-doc (:doc entry)))
-               delete!
-               (fn [& _]
-                 (-> (db/remove-id! db _id)
-                     (.then #(db/same-page paginator))
-                     (.then #(reset! -entries %))))]]
-     ^{:key _id}
-     [some-entry _id -doc (r/atom false) delete!])
-   [:hr]
-   [:div.columns
-    [:div.column.is-half
-     [:button.button.is-link.is-light.is-fullwidth
-      {:disabled (not @-has-prev-page?)
-       :on-click
-       (fn [& _]
-         (.pop (.-lastopts paginator))
-         (.then (db/same-page paginator)
-                #(if (and (seq %) (db/has-prev-page? paginator))
-                   (do
-                     (.log js/console (clj->js %))
-                     (reset! -has-next-page? true)
-                     (reset! -entries %))
-                   (reset! -has-prev-page? false))))}
-      "Previous Page"]]
-    [:div.column.is-half
-     [:button.button.is-link.is-light.is-fullwidth
-      {:disabled (not @-has-next-page?)
-       :on-click
-       (fn [& _]
-         (.then (db/next-page paginator)
-                #(if (seq %)
-                   (do
-                     (reset! -has-prev-page? true)
-                     (reset! -entries %))
-                   (reset! -has-next-page? false))))}
-      "Next Page"]]]])
+(defn- list-entries [title -paginator -entries]
+  (let [page-f! (fn [f]
+                  #(.then (f @-paginator)
+                          (fn [[paginator rows]]
+                            (reset! -paginator paginator)
+                            (reset! -entries rows))))
+        next-page! (page-f! db/next-page)
+        prev-page! (page-f! db/prev-page)
+        same-page! (page-f! db/same-page)]
+    [:div.container>div.box>div.content
+     [:h3 title]
+     (for [entry @-entries
+           :let [{:keys [_id]} (-> entry :doc (js->clj :keywordize-keys true))
+                 -doc (r/atom (db/unmarshal-doc (:doc entry)))
+                 delete! #(.then (db/remove-id! db _id) same-page!)]]
+       ^{:key _id}
+       [some-entry _id -doc (r/atom false) delete!])
+     [:hr]
+     [:div.columns
+      [:div.column.is-half
+       [:button.button.is-link.is-light.is-fullwidth
+        {:disabled (not (:prev-page? @-paginator))
+         :on-click prev-page!}
+        "Previous Page"]]
+      [:div.column.is-half
+       [:button.button.is-link.is-light.is-fullwidth
+        {:disabled (not (:next-page? @-paginator))
+         :on-click next-page!}
+        "Next Page"]]]]))
 
 (defn- list-recent []
-  (let [paginator (db/paginate-view db "spellbook/archive" {:reduce false
-                                                            :limit 2
-                                                            :include_docs true})
-        -entries (r/atom [])
-        -has-prev-page? (r/atom false)
-        -has-next-page? (r/atom true)]
-    (.then (db/next-page paginator)
-           #(reset! -entries %))
-    [list-entries "Recent" paginator -entries -has-prev-page? -has-next-page?]))
+  ;; only re-render the page when -entries changes; no r/atom for paginator
+  (let [-paginator
+        (atom
+         (db/paginate-view db "spellbook/archive" {:reduce false
+                                                   :include_docs true
+                                                   :descending true}))
+        -entries (r/atom [])]
+    (.then (db/next-page @-paginator)
+           (fn [[paginator rows]]
+             (reset! -paginator paginator)
+             (reset! -entries rows)))
+    [list-entries "Recent" -paginator -entries]))
+
+(defn- show-archive [-results]
+  (when (nil? @-results)
+    (.then (db/query-view db "spellbook/archive" {:group true
+                                                  :group_level 2})
+           #(reset! -results %)))
+  [:div.container>div.box>div.content
+   [:h3 "Archive"]
+   [:div.field.is-grouped]
+   (for [row @-results
+         :let [[year month] (:key row)
+               n (:value row)]]
+     ^{:key (:key row)}
+     [:div.control
+      [:div.tags.has-addons
+       [:a
+        {:on-click #(do (reset! -arg (:key row))
+                        (reset! -state :month))}
+        [:span.tag.is-dark (str year ", " (month->name month))]
+        [:span.tag.is-info n]]]])])
+
+(defn list-archive [startkey]
+  (let [[year month] startkey
+        endkey [year month "\uffff"]
+        -paginator
+        (atom
+         (db/paginate-view db "spellbook/archive" {:reduce false
+                                                   :startkey endkey
+                                                   :endkey startkey
+                                                   :include_docs true
+                                                   :descending true}))
+        -entries (r/atom [])]
+    (.then (db/next-page @-paginator)
+           (fn [[paginator rows]]
+             (reset! -paginator paginator)
+             (reset! -entries rows)))
+    [list-entries (str year ", " (month->name month)) -paginator -entries]))
+
+(defn show-tags [-results]
+  (when (nil? @-results)
+    (.then (db/query-view db "spellbook/tags" {:group true
+                                               :group_level 1})
+           #(reset! -results %)))
+  [:div.container>div.box>div.content
+   [:h3 "Tags"]
+   [:div.field.is-grouped
+    (for [row @-results
+          :let [[tag] (:key row)
+                n (:value row)]]
+      ^{:key (:key row)}
+      [:div.control
+       [:div.tags.has-addons
+        [:a
+         {:on-click #(do (reset! -arg (:key row))
+                         (reset! -state :tag))}
+         [:span.tag.is-dark tag]
+         [:span.tag.is-info n]]]])]])
+
+(defn- list-tags [startkey]
+  (let [[tag] startkey
+        endkey [tag "\uffff"]
+        -paginator
+        (atom
+         (db/paginate-view db "spellbook/tags" {:reduce false
+                                                :startkey endkey
+                                                :endkey startkey
+                                                :include_docs true
+                                                :descending true}))
+        -entries (r/atom [])]
+    (.then (db/next-page @-paginator)
+           (fn [[paginator rows]]
+             (reset! -paginator paginator)
+             (reset! -entries rows)))
+    [list-entries (str "#" tag) -paginator -entries]))
+
+(defn- list-search [word]
+  (let [startkey [word]
+        endkey [word "\uffff"]
+        -paginator
+        (atom
+         (db/paginate-view db "spellbook/text" {:reduce false
+                                                :startkey endkey
+                                                :endkey startkey
+                                                :include_docs true
+                                                :descending true}))
+        -entries (r/atom [])]
+    (.then (db/next-page @-paginator)
+           (fn [[paginator rows]]
+             (reset! -paginator paginator)
+             (reset! -entries rows)))
+    [list-entries (str "\"" word "\"") -paginator -entries]))
 
 (defn- app []
   [:section.section
@@ -246,8 +353,11 @@
       :loading   [loading]
       :new-entry [new-entry (r/atom "") (r/atom "")]
       :index     [list-recent]
-      ;;:archive [view-archive]
-      )]])
+      :archive   [show-archive (r/atom nil)]
+      :month     [list-archive @-arg]
+      :tags      [show-tags (r/atom nil)]
+      :tag       [list-tags @-arg]
+      :search    [list-search @-arg])]])
 
 (defn- main []
   (rd/render [app] (js/document.getElementById "app")))
