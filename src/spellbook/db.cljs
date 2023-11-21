@@ -63,7 +63,7 @@
    (.paginateQuery ^js/Object db view-id (clj->js opts))))
 
 (defn has-prev-page? [paginator]
-  (.-hasPrevPage ^js/Object paginator))
+  (< 1 (.-length (.-lastopts ^js/Object paginator))))
 
 (defn has-next-page? [paginator]
   (.-hasNextPage ^js/Object paginator))

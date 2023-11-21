@@ -40,33 +40,16 @@
       ;;  [(first key) value]))))
 
 (defn setup-db []
-  (.all js/Promise (for [[view-name json-view]
-                         [["archive"
+  (-> (.resolve js/Promise)
+      (.then #(db/put-view db "spellbook" "archive"
                            {:map {:key [{:access "type" :emit true :equals "entry"}
                                         {:access "created-at" :transform :datetime}]}
-                            :reduce "_count"}]
-                          ["tags"
+                            :reduce "_count"}))
+      (.then #(db/put-view db "spellbook" "tags"
                            {:map {:key [{:access "type" :emit true :equals "entry"}
                                         {:access "tags" :splay true}
                                         "created-at"]}
-                            :reduce "_count"}]]]
-                     (db/put-view db "spellbook" view-name json-view))))
-
-;; (defn- setup-recent []
-;;   (let [paginator (db/paginate-view -db "spellbook/archive" {:reduce false
-;;                                                              :include_docs true})]
-;;     (reset! -paginator paginator)
-;;     (.then (next-page)
-;;            #(reset! -state :index))))
-
-;; (defn setup-search [term]
-;;   (let [paginator (db/paginate-view -db "spellbook/tags" {:reduce false
-;;                                                           :startkey [term]
-;;                                                           :endkey [term "Z"]
-;;                                                           :include_docs true})]
-;;     (reset! -paginator paginator)
-;;     (.then (next-page)
-;;            #(reset! -state :search))))
+                            :reduce "_count"}))))
 
 (defn- initial-setup []
   (setup-db))
@@ -152,7 +135,8 @@
    [entry-form -text -tags]
    [:p
     [:button.button.is-link.is-fullwidth
-     {:on-click #(save-entry (str (random-uuid)) @-text @-tags)}
+     {:on-click #(.then (save-entry (str (random-uuid)) @-text @-tags)
+                        (fn [& _] (reset! -state :index)))}
      "Save Entry"]]])
 
 (defn- some-entry [id -doc -editing? delete!]
@@ -232,10 +216,10 @@
 
 (defn- list-recent []
   (let [paginator (db/paginate-view db "spellbook/archive" {:reduce false
-                                                            :limit 1
+                                                            :limit 2
                                                             :include_docs true})
         -entries (r/atom [])]
-    (.then (db/same-page paginator)
+    (.then (db/next-page paginator)
            #(reset! -entries %))
     [list-entries "Recent" paginator -entries]))
 
