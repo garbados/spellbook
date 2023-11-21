@@ -63,11 +63,12 @@
                                  :reduce "_sum"})]))
          (.then #(db/paginate-view @-db "testing/a" {:reduce false}))
          (.then #(db/next-page %))
-         (.then #(is (= 20 (count %))))
+         (.then #(is (= 20 (count (second %)))))
          (.then #(db/paginate-view @-db "testing/a"))
          (.then #(db/next-page %))
-         (.then #(is (and (-> % first :value number?)
-                          (-> % first :key nil?))))
+         (.then #(let [[{:keys [key value]}] (second %)]
+                   (is (and (number? value)
+                            (nil? key)))))
          ; selectively paginate
          (.then #(db/save-doc @-db (str (random-uuid))
                               {:a 0 :b "a"}
@@ -79,8 +80,8 @@
          (.then #(db/paginate-view @-db "testing/a" {:reduce false
                                                      :include_docs true}))
          (.then #(db/next-page %))
-         (.then #(and (is (= 20 (count %)))
-                      (is (-> % first :doc db/unmarshal-doc :a number?))))
+         (.then #(and (is (= 20 (count (second %))))
+                      (is (-> % second first :doc db/unmarshal-doc :a number?))))
          (.finally done)))))
 
 (enable-console-print!)
