@@ -38,5 +38,6 @@ jobs:
           key: cljdeps-${{ hashFiles('project.clj') }}
           restore-keys: cljdeps-
 
+      - run: npm i
       - name: Run tests
         run: npm test
