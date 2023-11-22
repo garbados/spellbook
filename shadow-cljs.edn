@@ -11,11 +11,7 @@
  {:app
   {:target :browser
    :output-dir "www/js"
-   :modules {:main {:entries [spellbook.app]}}
-   ;; Here is some dev-specific config
-   :dev {:compiler-options {:devcards true}}
-   ;; Here is some production config
-   :release {:compiler-options {:optimizations :simple}}}
+   :modules {:main {:entries [spellbook.app]}}}
   :test
   {:target :node-test
    :output-to "out/test.js"
