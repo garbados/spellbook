@@ -7,7 +7,7 @@
   "scripts": {
     "build": "shadow-cljs compile app",
     "dev": "shadow-cljs watch app",
-    "release": "shadow-cljs compile app",
+    "release": "shadow-cljs release app",
     "serve": "serve www",
     "test": "shadow-cljs compile test",
     "dev-test": "shadow-cljs watch test"
