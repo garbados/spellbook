@@ -86,45 +86,46 @@
 
 (defn- navbar []
   (let [-search (r/atom "")]
-    [:div.level
-     [:div.level-left
-      [:div.level-item
-       [:h1.title "📖 Spellbook"]]
-      [:div.level-item
-       [:button.button.is-primary
-        {:on-click #(reset! -state :new-entry)}
-        "✍️ New Entry"]]
-      [:div.level-item
-       [:button.button.is-info
-        {:on-click #(reset! -state :index)}
-        "🔮 Recent"]]
-      [:div.level-item
-       [:button.button.is-info
-        {:on-click #(reset! -state :archive)}
-        "🗓️ Archive"]]
-      [:div.level-item
-       [:button.button.is-info
-        {:on-click #(reset! -state :tags)}
-        "🏷 Tags"]]]
-     [:div.level-right
-      [:div.level-item
-       [:div.field
-        [:div.control.has-icons-right
-         [prompt-text -search #(do (reset! -arg (.toLowerCase @-search))
-                                   (reset! -state :search))]
-         [:span.icon.is-small.is-right
-          [:i.fas.fa-magnifying-glass]]]]]
-      [:div.level-item
-       [:a.button.is-info.is-light
-        {:href "https://github.com/garbados/spellbook"
-         :target "_blank"}
-        "Source 👩‍💻"]]
-      [:div.level-item
-       [:p.subtitle
-        [:strong "A diary by "
-         [:a {:href "https://www.patreon.com/garbados"
-              :target "_blank"}
-          "DFB 💖"]]]]]]))
+    [:div.box
+     [:div.level
+      [:div.level-left
+       [:div.level-item
+        [:h1.title "📖 Spellbook"]]
+       [:div.level-item
+        [:button.button.is-primary
+         {:on-click #(reset! -state :new-entry)}
+         "✍️ New Entry"]]
+       [:div.level-item
+        [:button.button.is-info
+         {:on-click #(reset! -state :index)}
+         "🔮 Recent"]]
+       [:div.level-item
+        [:button.button.is-info
+         {:on-click #(reset! -state :archive)}
+         "🗓️ Archive"]]
+       [:div.level-item
+        [:button.button.is-info
+         {:on-click #(reset! -state :tags)}
+         "🏷 Tags"]]]
+      [:div.level-right
+       [:div.level-item
+        [:div.field
+         [:div.control.has-icons-right
+          [prompt-text -search #(do (reset! -arg (.toLowerCase @-search))
+                                    (reset! -state :search))]
+          [:span.icon.is-small.is-right
+           [:i.fas.fa-magnifying-glass]]]]]
+       [:div.level-item
+        [:a.button.is-info.is-light
+         {:href "https://github.com/garbados/spellbook"
+          :target "_blank"}
+         "Source 👩‍💻"]]
+       [:div.level-item
+        [:p.subtitle
+         [:strong "A diary by "
+          [:a {:href "https://www.patreon.com/garbados"
+               :target "_blank"}
+           "DFB 💖"]]]]]]]))
 
 (defn- loading []
   (.then (initial-setup)
@@ -228,12 +229,12 @@
                  -doc (r/atom (db/unmarshal-doc (:doc entry)))
                  delete! #(.then (db/remove-id! db _id) same-page!)]]
        ^{:key _id}
-       [some-entry _id -doc (r/atom false) delete!])
-     (when (and (seq @-entries)
-                (or (:prev-page? @-paginator)
-                    (:next-page? @-paginator)))
        [:<>
-        [:hr]
+        [some-entry _id -doc (r/atom false) delete!]
+        [:br]])
+     (when (or (:prev-page? @-paginator)
+               (:next-page? @-paginator))
+       [:<>
         [:div.columns
          [:div.column.is-half
           [:button.button.is-link.is-light.is-fullwidth
@@ -354,9 +355,8 @@
     [list-entries (str "\"" word "\"") -paginator -entries]))
 
 (defn- app []
-  [:section.section
+  [:<>
    [navbar]
-   [:hr]
    [:div.block
     (case @-state
       :loading   [loading]
