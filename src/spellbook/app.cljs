@@ -270,7 +270,7 @@
            #(reset! -results %)))
   [:div.container>div.box>div.content
    [:h3 "Archive"]
-   [:div.field.is-grouped
+   [:div.field.is-grouped.is-grouped-multiline
     (for [row @-results
           :let [[year month] (:key row)
                 n (:value row)]]
@@ -307,7 +307,7 @@
            #(reset! -results %)))
   [:div.container>div.box>div.content
    [:h3 "Tags"]
-   [:div.field.is-grouped
+   [:div.field.is-grouped.is-grouped-multiline
     (for [row @-results
           :let [[tag] (:key row)
                 n (:value row)]]
