@@ -2,7 +2,7 @@
   "name": "spellbook",
   "description": "A diary. Stores everything in your browser. Use [here](https://garbados.github.io/spellbook).",
   "license": "Apache-2.0",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
     "build": "shadow-cljs compile app",
