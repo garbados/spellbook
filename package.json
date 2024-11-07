@@ -5,6 +5,7 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
+    "start": "npm run build && npm run serve",
     "build": "shadow-cljs compile app",
     "dev": "shadow-cljs watch app",
     "release": "shadow-cljs release app",
@@ -17,7 +18,7 @@
     "shadow-cljs": "2.26.0"
   },
   "dependencies": {
-    "pouchdb": "^8.0.1",
+    "pouchdb": "^9.0.0",
     "pouchdb-jsonviews": "^1.2.1",
     "react-dom": "^18.2.0"
   },
