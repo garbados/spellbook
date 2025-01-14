@@ -8,11 +8,18 @@
     <link rel="stylesheet" href="css/solid.min.css" />
     <title>Spellbook</title>
     <!-- DEBUGGING -->
-    <script src="//cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
+    <script>
+        ;(function () {
+            var src = '//cdn.jsdelivr.net/npm/eruda';
+            if (!/eruda=true/.test(window.location) && localStorage.getItem('active-eruda') !== 'true') return;
+            document.write('<scr' + 'ipt src="' + src + '"></scr' + 'ipt>');
+            document.write('<scr' + 'ipt>eruda.init();</scr' + 'ipt>');
+        })();
+    </script>
 </head>
 <body>
     <div id="app"></div>
+    <my-app></my-app>
     <script src="js/main.js" type="text/javascript"></script>
 </body>
 </html>
