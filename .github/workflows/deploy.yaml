@@ -58,7 +58,7 @@ jobs:
           key: cljdeps-${{ hashFiles('package.json') }}-${{ hashFiles('deps.clj') }}
           restore-keys: cljdeps-
       
-      - run: npm run release
+      - run: npm run build # phones hate minification
       - name: Setup Pages
         uses: actions/configure-pages@v3
       - name: Upload artifact
