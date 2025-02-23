@@ -298,13 +298,13 @@
    (cons
     :div.field.is-grouped.is-grouped-multiline
     (for [row results
-          :let [tag (:key row)
+          :let [tag (first (:key row))
                 n (:value row)]]
       ^{:key (:key row)}
       [:div.control
        [:div.tags.has-addons
         [:a
-         {:href (str "#tag/" tag)}
+         {:href (str "#tag/" (js/encodeURIComponent tag))}
          [:span.tag.is-dark tag]
          [:span.tag.is-info n]]]]))])
 
@@ -344,8 +344,8 @@
 (defn- list-tags [node hash]
   (let [tag (js/decodeURIComponent (second (re-find #"tag/(.+)$" hash)))
         page-options {:reduce false
-                      :startkey (str tag "\uffff")
-                      :endkey (str tag "\u0000")
+                      :startkey [tag "\uffff"]
+                      :endkey [tag]
                       :include_docs true
                       :descending true}
         title (str "#" tag)]
@@ -355,7 +355,7 @@
   (let [word (second (re-find #"search/(.+)$" hash))
         page-options {:reduce false
                       :startkey (str word "\uffff")
-                      :endkey (str word "\u0000")
+                      :endkey word
                       :include_docs true
                       :descending true}
         title (str "\"" word "\"")]
