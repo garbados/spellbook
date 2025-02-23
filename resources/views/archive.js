@@ -11,9 +11,8 @@ function archive (doc) {
     hour = rawTime[0]
     minute = rawTime[1]
     second = rawTime[2].split('.').slice(0, -1)
-    millisecond = second[1]
     second = second[0]
-    const time = [hour, minute, second, millisecond]
+    const time = [hour, minute, second]
     const datetime = date.concat(time)
     emit(datetime)
   }

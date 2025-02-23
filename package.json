@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "html-alchemist": "^2.0.1",
+    "marked": "^15.0.7",
     "pouchdb": "^8.0.1"
   },
   "repository": {

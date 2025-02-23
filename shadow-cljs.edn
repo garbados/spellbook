@@ -6,9 +6,6 @@
  ["src"
   "test"]
 
- :dependencies
- [[markdown-clj "1.11.7"]]
-
  :builds
  {:app
   {:target :browser
