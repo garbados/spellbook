@@ -217,7 +217,7 @@
     [:span.card-footer-item
      [:button.button.is-danger.is-fullwidth.is-light
       {:onclick on-delete}
-      "🗑 Delete"]]]])
+      "🗑️ Delete"]]]])
 
 (defn- some-entry [id -doc -editing? delete!]
   (if @-editing?
