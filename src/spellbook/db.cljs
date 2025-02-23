@@ -1,10 +1,7 @@
 (ns spellbook.db
   (:require [clojure.edn :as edn]
             [clojure.spec.alpha :as s]
-            ["pouchdb" :as pouchdb]
-            ["pouchdb-jsonviews" :as jsonview]))
-
-(.plugin pouchdb jsonview)
+            ["pouchdb" :as pouchdb]))
 
 (defn init-db
   ([name]
@@ -45,9 +42,6 @@
 (defn remove-id! [db id]
   (-> (.get db id)
       (.then #(.remove db %))))
-
-(defn put-view [db id view-name json-view]
-  (.putJsonView ^js/Object db id view-name (clj->js json-view)))
 
 (defn normalize-results [results]
   (js->clj (.-rows results) :keywordize-keys true))
