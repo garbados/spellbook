@@ -17,8 +17,8 @@
      done
      (let [id (str (random-uuid))
            value {:omg :wow}]
-       (-> (db/save-doc @-db id value)
-           (.then #(db/resolve-id @-db id))
+       (-> (db/save-value @-db id value [])
+           (.then #(db/resolve-value @-db id))
            (.then #(is (= value %)))
            (.finally done))))))
 
@@ -30,7 +30,7 @@
            value {:omg :wow}]
        (-> (db/save-doc @-db id value)
            (.then #(db/remove-id! @-db id))
-           (.then #(db/resolve-id @-db id))
+           (.then #(db/snag-doc @-db id))
            (.then #(throw (ex-info "Should not work!" {})))
            (.catch #(is (= 404 (.-status %))))
            (.finally done))))))
@@ -41,9 +41,9 @@
      done
      (let [id (str (random-uuid))
            value {:omg :wow}]
-       (-> (db/save-doc @-db id value)
-           (.then #(db/upsert-doc @-db id (assoc value :omg :bogus)))
-           (.then #(db/resolve-id @-db id))
+       (-> (db/save-value @-db id value)
+           (.then #(db/upsert-value @-db id (assoc value :omg :bogus)))
+           (.then #(db/resolve-value @-db id))
            (.then #(is (= :bogus (:omg %))))
            (.finally done))))))
 
@@ -56,11 +56,13 @@
           (concat (for [_ (range 100)
                         :let [doc {:a (rand-int 10)
                                    :b (rand-nth ["a" "b" "c"])}]]
-                    (db/save-doc @-db (str (random-uuid)) doc [:a]))
-                  [(db/put-view @-db "testing" "a"
-                                {:map {:key :b
-                                       :value :a}
-                                 :reduce "_sum"})]))
+                    (db/save-value @-db (str (random-uuid)) doc [:a]))
+                  [(db/upsert-ddoc!
+                    @-db "testing"
+                    {:views
+                     {:a
+                      {:map "function (doc) { emit(doc.b, doc.a) }"
+                       :reduce "_sum"}}})]))
          (.then #(db/paginate-view @-db "testing/a" {:reduce false}))
          (.then #(db/next-page %))
          (.then #(is (= 20 (count (second %)))))
@@ -70,9 +72,9 @@
                    (is (and (number? value)
                             (nil? key)))))
          ; selectively paginate
-         (.then #(db/save-doc @-db (str (random-uuid))
-                              {:a 0 :b "a"}
-                              [:a :b]))
+         (.then #(db/save-value @-db (str (random-uuid))
+                                {:a 0 :b "a"}
+                                [:a :b]))
          (.then #(db/paginate-view @-db "testing/a" {:group true}))
          (.then #(db/next-page %))
          (.then #(is (= 2 (count %))))

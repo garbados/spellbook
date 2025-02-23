@@ -1,10 +1,7 @@
 (ns spellbook.db
   (:require [clojure.edn :as edn]
             [clojure.spec.alpha :as s]
-            ["pouchdb" :as pouchdb]
-            ["pouchdb-jsonviews" :as jsonview]))
-
-(.plugin pouchdb jsonview)
+            ["pouchdb" :as pouchdb]))
 
 (defn init-db
   ([name]
@@ -22,32 +19,59 @@
           {:-value (pr-str value)})))
 
 (defn save-doc
-  ([db id value]
-   (save-doc db id value []))
-  ([db id value to-index]
-   (.put db (marshal-doc {:_id (str id)} value to-index))))
+  ([db id doc]
+   (.put db (clj->js (merge {:_id id} doc)))))
 
-(defn upsert-doc
+(defn snag-doc [db id]
+  (.then (.get db id) #(js->clj % :keywordize-keys true)))
+
+(defn resolve-value [db id]
+  (.then (.get db id) unmarshal-doc))
+
+(defn save-value
   ([db id value]
-   (upsert-doc db id value []))
+   (save-value db id value []))
   ([db id value to-index]
-   (.catch (save-doc db id value to-index)
+   (.put db (marshal-doc {:_id (str id)} value to-index)))
+  ([db id value to-index rev]
+   (.put db (marshal-doc {:_id (str id) :_rev rev} value to-index))))
+
+(defn upsert-value
+  ([db id value]
+   (upsert-value db id value []))
+  ([db id value to-index]
+   (.then (snag-doc db id)
+          (fn [{rev :_rev}]
+            (save-value db id value to-index rev)))))
+
+(defn upsert-doc!
+  ([db id doc]
+   (upsert-doc! db id doc #(assoc doc :_rev (:_rev %))))
+  ([db id doc mergefn]
+   (.catch (save-doc db id doc)
            (fn [e]
              (if (= 409 (.-status e))
-               (.then (.get db id)
-                      #(.put db (marshal-doc (js->clj % {:keywordize-keys true})
-                                             value to-index)))
+               (.then (snag-doc db id)
+                      #(save-doc db id (mergefn % doc)))
                (throw e))))))
 
-(defn resolve-id [db id]
-  (.then (.get db id) unmarshal-doc))
+(defn upsert-ddoc!
+  [db ddoc-id ddoc]
+  (.catch
+   (.put db (clj->js (assoc ddoc :_id ddoc-id)))
+   (fn [e]
+     (if (= 409 (.-status e))
+       (.then (.get db ddoc-id)
+              (fn [other-ddocjs]
+                (let [{rev :_rev :as other-ddoc}
+                      (js->clj other-ddocjs :keywordize-keys true)]
+                  (when (not= (select-keys other-ddoc [:views]) ddoc)
+                    (.put db (clj->js (assoc ddoc :_id ddoc-id :_rev rev)))))))
+       (throw e)))))
 
 (defn remove-id! [db id]
   (-> (.get db id)
       (.then #(.remove db %))))
-
-(defn put-view [db id view-name json-view]
-  (.putJsonView ^js/Object db id view-name (clj->js json-view)))
 
 (defn normalize-results [results]
   (js->clj (.-rows results) :keywordize-keys true))
