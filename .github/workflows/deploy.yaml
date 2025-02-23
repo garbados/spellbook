@@ -34,7 +34,7 @@ jobs:
           java-version: '17'
 
       - name: Install clojure tools
-        uses: DeLaGuardo/setup-clojure@12.1
+        uses: DeLaGuardo/setup-clojure@13.0
         with:
           cli: 1.12.0.1517
 
