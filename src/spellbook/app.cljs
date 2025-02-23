@@ -298,7 +298,7 @@
    (cons
     :div.field.is-grouped.is-grouped-multiline
     (for [row results
-          :let [[tag] (:key row)
+          :let [tag (:key row)
                 n (:value row)]]
       ^{:key (:key row)}
       [:div.control
