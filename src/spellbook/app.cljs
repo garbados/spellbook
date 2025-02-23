@@ -267,13 +267,17 @@
         [:div.columns
          [:div.column.is-half
           [:button.button.is-link.is-light.is-fullwidth
-           {:disabled (not (:prev-page? @-paginator))
-            :onclick prev-page!}
+           (cond->
+            {:onclick prev-page!}
+             (not (:prev-page? @-paginator))
+             (merge {:disabled true}))
            "Previous Page"]]
          [:div.column.is-half
           [:button.button.is-link.is-light.is-fullwidth
-           {:disabled (not (:next-page? @-paginator))
-            :onclick next-page!}
+           (cond->
+            {:onclick next-page!}
+             (not (:next-page? @-paginator))
+             (merge {:disabled true}) )
            "Next Page"]]]])]))
 
 (defn- archive [results]
