@@ -8,16 +8,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
       - name: Prepare java
         uses: actions/setup-java@v3
         with:
           distribution: 'microsoft'
           java-version: '17'
+
       - name: Install clojure tools
         uses: DeLaGuardo/setup-clojure@13.0
         with:
-          cli: 1.11.1.1347
+          cli: 1.12.0
           lein: 2.9.10
+
+      - name: Install NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - run: npm i
+
       - name: Cache clojure dependencies
         uses: actions/cache@v3
         with:
@@ -25,9 +35,10 @@ jobs:
             ~/.m2/repository
             ~/.gitlibs
             ~/.deps.clj
+            ~/.node_modules
+          # List all files containing dependencies:
           key: cljdeps-${{ hashFiles('package-lock.json') }}
           restore-keys: cljdeps-
-      - name: Install dependencies
-        run: npm i
+
       - name: Run tests
         run: npm test

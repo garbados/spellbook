@@ -36,16 +36,15 @@ jobs:
       - name: Install clojure tools
         uses: DeLaGuardo/setup-clojure@12.1
         with:
-          cli: 1.11.1.1347
+          cli: 1.12.0
 
       - name: Install NodeJS
-        uses: dcodeIO/setup-node-nvm@master
+        uses: actions/setup-node@v4
         with:
-          node-version: lts/* 
+          node-version: lts/*
 
       - run: npm i
           
-      # Optional step:
       - name: Cache clojure dependencies
         uses: actions/cache@v3
         with:
@@ -55,14 +54,16 @@ jobs:
             ~/.deps.clj
             ~/.node_modules
           # List all files containing dependencies:
-          key: cljdeps-${{ hashFiles('package.json') }}-${{ hashFiles('deps.clj') }}
+          key: cljdeps-${{ hashFiles('package-lock.json') }}
           restore-keys: cljdeps-
-      
+
       - run: npm run release
+
       - name: Setup Pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v5
+
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire repository
           path: 'www'
@@ -72,4 +73,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
