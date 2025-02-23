@@ -376,7 +376,6 @@
 (defn- landing []
   (.then (db/query-view db "spellbook/archive" {:reduce false :limit 1})
          (fn [result]
-           (println result)
            (if (seq result)
              (goto "recent")
              (goto "compose")))))

@@ -156,5 +156,6 @@
        [(-> paginator
             (update :skip - (:limit paginator))
             (update :skip max 0)
-            (assoc :prev-page? (not= 0 skip)))
+            (assoc :prev-page? (not= 0 skip))
+            (assoc :next-page? true))
         rows]))))

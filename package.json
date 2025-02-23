@@ -2,9 +2,10 @@
   "name": "spellbook",
   "description": "A diary. Stores everything in your browser. Use [here](https://garbados.github.io/spellbook).",
   "license": "Apache-2.0",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
+    "start": "npm run build && npm run serve",
     "build": "shadow-cljs compile app",
     "dev": "shadow-cljs watch app",
     "release": "shadow-cljs release app",
@@ -19,7 +20,7 @@
   "dependencies": {
     "html-alchemist": "^2.0.1",
     "marked": "^15.0.7",
-    "pouchdb": "^8.0.1"
+    "pouchdb": "^9.0.0"
   },
   "repository": {
     "type": "git",
